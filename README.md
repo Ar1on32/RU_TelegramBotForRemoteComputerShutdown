@@ -1,4 +1,4 @@
-# RU_tgBOT_off--omputer
+# RU_tgBOT_off--сomputer
 
 ### Бот сделан на Python 21.6
 
