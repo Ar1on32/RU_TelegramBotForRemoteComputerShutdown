@@ -1,9 +1,9 @@
-﻿import sys
+import sys
 import os
 import logging
 import asyncio
 import psutil  # Для мониторинга состояния ПК
-import GPUtil  # Для получения информации о видеокарте
+import GPUtil  # Для получения информации о видеокартах
 import pyautogui  # Для захвата экрана
 from io import BytesIO  # Для работы с байтовыми потоками
 from telegram import Update
@@ -22,7 +22,7 @@ TOKEN = 'Ваш токен'  # Замените на ваш токен
 PASSWORD = 'Ваш пароль'  # Замените на ваш пароль
 
 # Замените на ваш Telegram ID
-ALLOWED_USER_ID = Ваш id  # Ваш Telegram ID
+ALLOWED_USER_ID = Ваш id  # Замените на ваш Telegram ID (числовое значение)
 
 # Хранение статуса авторизации пользователя
 user_authenticated = {}
@@ -51,7 +51,12 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id == ALLOWED_USER_ID:
         if update.message.text == PASSWORD:
             user_authenticated[user_id] = True
-            await update.message.reply_text("Пароль принят! Теперь вы можете использовать команды /shutdown, /timer_shutdown, /status, /screenshot и /help.")
+            confirmation_message = await update.message.reply_text("Пароль принят! Теперь вы можете использовать команды /shutdown, /timer_shutdown, /status, /screenshot, /run и /help.")
+            
+            # Удаляем сообщение с паролем через 5 секунд
+            await asyncio.sleep(5)
+            await context.bot.delete_message(chat_id=user_id, message_id=update.message.message_id)
+            await context.bot.delete_message(chat_id=user_id, message_id=confirmation_message.message_id)
         else:
             await update.message.reply_text("Неверный пароль. Попробуйте снова.")
     else:
@@ -65,10 +70,27 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/timer_shutdown <seconds> - выключить компьютер через указанное количество секунд\n"
         "/status - получить статус системы\n"
         "/screenshot - получить скриншот экрана\n"
+        "/screenshot_area <x1> <y1> <x2> <y2> - получить скриншот выбранной области\n"
+        "/run <app_name> - запустить приложение\n"
         "/reset - сбросить статус авторизации\n"
         "/help - получить список доступных команд"
     )
     await context.bot.send_message(chat_id=user_id, text=commands)
+
+async def run_application(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    if user_authenticated.get(user_id, False):
+        if context.args:
+            app_name = " ".join(context.args)
+            try:
+                os.startfile(app_name)  # Запускаем приложение
+                await context.bot.send_message(chat_id=user_id, text=f"Запуск приложения: {app_name}")
+            except Exception as e:
+                await context.bot.send_message(chat_id=user_id, text=f"Не удалось запустить приложение: {app_name}. Ошибка: {str(e)}")
+        else:
+            await context.bot.send_message(chat_id=user_id, text="Пожалуйста, укажите название приложения.")
+    else:
+        await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
 
 async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
@@ -83,16 +105,22 @@ async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def timer_shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
     if user_authenticated.get(user_id, False):
-        if context.args and context.args[0].isdigit():
-            delay = int(context.args[0])
-            await context.bot.send_message(chat_id=user_id, text=f"Компьютер будет выключен через {delay} секунд...")
-            await asyncio.sleep(delay)  # Задержка в заданное время
-            os.system('shutdown /s /t 0')
-            await context.bot.send_message(chat_id=user_id, text="Компьютер выключился.")
+        if context.args and len(context.args) > 0:
+            if context.args[0].isdigit():
+                delay = int(context.args[0])
+                await context.bot.send_message(chat_id=user_id, text=f"Компьютер будет выключен через {delay} секунд...")
+                # Запускаем задачу по выключению в фоновом режиме
+                asyncio.create_task(shutdown_after_delay(delay, user_id))
+            else:
+                await context.bot.send_message(chat_id=user_id, text="Пожалуйста, укажите время в секундах числом.")
         else:
             await context.bot.send_message(chat_id=user_id, text="Пожалуйста, укажите время в секундах.")
     else:
         await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
+
+async def shutdown_after_delay(delay, user_id):
+    await asyncio.sleep(delay)  # Ждем указанное время
+    await shutdown(user_id)  # Вызываем функцию выключения
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
@@ -138,6 +166,26 @@ async def screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
 
+async def screenshot_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    if user_authenticated.get(user_id, False):
+        if len(context.args) == 4 and all(arg.isdigit() for arg in context.args):
+            x1, y1, x2, y2 = map(int, context.args)
+            # Захватываем область экрана
+            screenshot = pyautogui.screenshot(region=(x1, y1, x2 - x1, y2 - y1))
+            
+            # Сохраняем скриншот в байтовом потоке
+            bio = BytesIO()
+            screenshot.save(bio, format='PNG')
+            bio.seek(0)  # Перемещаем указатель в начало потока
+            
+            # Отправляем скриншот пользователю
+            await context.bot.send_photo(chat_id=user_id, photo=bio)
+        else:
+            await context.bot.send_message(chat_id=user_id, text="Пожалуйста, укажите координаты в формате: /screenshot_area <x1> <y1> <x2> <y2>")
+    else:
+        await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
+
 def start_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -149,8 +197,10 @@ def start_bot():
     timer_shutdown_handler = CommandHandler('timer_shutdown', timer_shutdown)
     reset_handler = CommandHandler('reset', reset)
     system_status_handler = CommandHandler('status', system_status)
-    screenshot_handler = CommandHandler('screenshot', screenshot)  # Команда для скриншота
-    help_handler = CommandHandler('help', help_command)  # Новая команда для помощи
+    screenshot_handler = CommandHandler('screenshot', screenshot)
+    screenshot_area_handler = CommandHandler('screenshot_area', screenshot_area)
+    help_handler = CommandHandler('help', help_command)
+    run_handler = CommandHandler('run', run_application)  # Обработчик для запуска приложений
     password_message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)
 
     app.add_handler(start_handler)
@@ -158,8 +208,10 @@ def start_bot():
     app.add_handler(timer_shutdown_handler)
     app.add_handler(reset_handler)
     app.add_handler(system_status_handler)
-    app.add_handler(screenshot_handler)  # Регистрация команды скриншота
-    app.add_handler(help_handler)  # Регистрация команды помощи
+    app.add_handler(screenshot_handler)
+    app.add_handler(screenshot_area_handler)
+    app.add_handler(help_handler)
+    app.add_handler(run_handler)  # Регистрация команды для запуска приложений
     app.add_handler(password_message_handler)
 
     loop.run_until_complete(app.run_polling())
@@ -176,21 +228,18 @@ def run_gui():
 
     # Определите путь к иконке
     base_path = os.path.dirname(__file__)
-    icon_path = os.path.join(base_path, 'icon.png')  # Иконка в той же папке, что и скрипт
+    icon_path = os.path.join(base_path, 'icon.png')  # Укажите правильный путь к иконке
+    icon = QIcon(icon_path)
 
-    icon = QIcon(icon_path)  # Замените на путь к вашему файлу PNG
-    tray_icon = SystemTrayIcon(icon)
-
-    # Показываем иконку в системном трее
-    tray_icon.show()
+    # Запускаем системный трей
+    tray = SystemTrayIcon(icon)
 
     # Запускаем бота в отдельном потоке
     bot_thread = BotThread()
-    bot_thread.finished.connect(lambda: logging.info("Bot thread finished."))  # Логируем завершение потока
     bot_thread.start()
 
-    # Запускаем цикл событий PyQt
+    # Запускаем GUI
     app.exec_()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run_gui()
