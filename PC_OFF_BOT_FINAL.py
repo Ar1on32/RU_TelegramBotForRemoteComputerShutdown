@@ -51,7 +51,7 @@ async def password_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id == ALLOWED_USER_ID:
         if update.message.text == PASSWORD:
             user_authenticated[user_id] = True
-            confirmation_message = await update.message.reply_text("Пароль принят! Теперь вы можете использовать команды /shutdown, /timer_shutdown, /status, /screenshot, /run и /help.")
+            confirmation_message = await update.message.reply_text("Пароль принят! Теперь вы можете использовать команды /shutdown, /timer_shutdown, /status, /screenshot и /help.")
             
             # Удаляем сообщение с паролем через 5 секунд
             await asyncio.sleep(5)
@@ -71,26 +71,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/status - получить статус системы\n"
         "/screenshot - получить скриншот экрана\n"
         "/screenshot_area <x1> <y1> <x2> <y2> - получить скриншот выбранной области\n"
-        "/run <app_name> - запустить приложение\n"
         "/reset - сбросить статус авторизации\n"
-        "/help - получить список доступных команд"
+        "/help - получить список доступных команд\n"
+        "/sleep - перевести компьютер в спящий режим"  # Добавлено описание новой команды
     )
     await context.bot.send_message(chat_id=user_id, text=commands)
-
-async def run_application(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_chat.id
-    if user_authenticated.get(user_id, False):
-        if context.args:
-            app_name = " ".join(context.args)
-            try:
-                os.startfile(app_name)  # Запускаем приложение
-                await context.bot.send_message(chat_id=user_id, text=f"Запуск приложения: {app_name}")
-            except Exception as e:
-                await context.bot.send_message(chat_id=user_id, text=f"Не удалось запустить приложение: {app_name}. Ошибка: {str(e)}")
-        else:
-            await context.bot.send_message(chat_id=user_id, text="Пожалуйста, укажите название приложения.")
-    else:
-        await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
 
 async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_chat.id
@@ -186,6 +171,15 @@ async def screenshot_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
 
+async def sleep_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
+    if user_authenticated.get(user_id, False):
+        await context.bot.send_message(chat_id=user_id, text="Компьютер переводится в спящий режим...")
+        os.system('rundll32.exe powrprof.dll,SetSuspendState 0,1,0')
+        await context.bot.send_message(chat_id=user_id, text="Компьютер переведен в спящий режим.")
+    else:
+        await context.bot.send_message(chat_id=user_id, text="Вы не авторизованы для использования этой команды. Пожалуйста, введите пароль с помощью команды /start.")
+
 def start_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -198,9 +192,9 @@ def start_bot():
     reset_handler = CommandHandler('reset', reset)
     system_status_handler = CommandHandler('status', system_status)
     screenshot_handler = CommandHandler('screenshot', screenshot)
-    screenshot_area_handler = CommandHandler('screenshot_area', screenshot_area)
-    help_handler = CommandHandler('help', help_command)
-    run_handler = CommandHandler('run', run_application)  # Обработчик для запуска приложений
+    screenshot_area_handler = CommandHandler('screenshot_area', screenshot_area)  # Команда для скриншота области
+    help_handler = CommandHandler('help', help_command)  # Новая команда для помощи
+    sleep_handler = CommandHandler('sleep', sleep_mode)  # Новый обработчик для команды /sleep
     password_message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND, password_handler)
 
     app.add_handler(start_handler)
@@ -208,10 +202,10 @@ def start_bot():
     app.add_handler(timer_shutdown_handler)
     app.add_handler(reset_handler)
     app.add_handler(system_status_handler)
-    app.add_handler(screenshot_handler)
-    app.add_handler(screenshot_area_handler)
-    app.add_handler(help_handler)
-    app.add_handler(run_handler)  # Регистрация команды для запуска приложений
+    app.add_handler(screenshot_handler)  # Регистрация команды скриншота
+    app.add_handler(screenshot_area_handler)  # Регистрация команды для скриншота области
+    app.add_handler(help_handler)  # Регистрация команды помощи
+    app.add_handler(sleep_handler)  # Регистрация новой команды
     app.add_handler(password_message_handler)
 
     loop.run_until_complete(app.run_polling())
@@ -228,18 +222,17 @@ def run_gui():
 
     # Определите путь к иконке
     base_path = os.path.dirname(__file__)
-    icon_path = os.path.join(base_path, 'icon.png')  # Укажите правильный путь к иконке
-    icon = QIcon(icon_path)
+    icon_path = os.path.join(base_path, 'icon.png')  # Укажите путь к вашему значку
 
-    # Запускаем системный трей
-    tray = SystemTrayIcon(icon)
-
-    # Запускаем бота в отдельном потоке
+    # Создаем и показываем иконку в системном трее
+    tray_icon = SystemTrayIcon(QIcon(icon_path))
+    
+    # Запускаем поток с ботом
     bot_thread = BotThread()
+    bot_thread.finished.connect(app.quit)  # Завершение приложения при завершении потока
     bot_thread.start()
 
-    # Запускаем GUI
-    app.exec_()
+    sys.exit(app.exec_())
 
 if __name__ == '__main__':
     run_gui()
