@@ -1,4 +1,4 @@
-# RU_tgBOT_off--сomputer
+# RU_TelegramBotForRemoteComputerShutdown
 
 ### Бот сделан на Python 21.6
 
