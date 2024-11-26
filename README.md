@@ -39,7 +39,7 @@ pip install pyinstaller
 > [!IMPORTANT]
 > - После того как вы поменяли всё что нужно, сохраняйте и поменяйте формат файла `py` на `pyw` (таким образом, когда бот будет включаться не будет открываться консоль)
 > 
-> - Скомилируйте файл pyw с icon.png  и получите .exe(pyinstaller --onefile --noconsole --add-data "icon.png:." ваш_скрипт.pyw)
+> - Скомилируйте файл pyw с icon.png  и получите .exe("pyinstaller --onefile --noconsole --add-data "icon.png:." ваш_скрипт.pyw")
 > 
 > - Отправляйте файл .exe в Автозагрузку(win+r--->shell:startup)
 > 
