@@ -43,7 +43,7 @@ pip install pyinstaller
 
 Что бы скомплировать файл: 
 
-`win+r`---> `cmd`--->`cd путь к вашему файлу`---> "`pyinstaller --onefile --noconsole --add-data "icon.png:." ваш_скрипт.pyw`"
+`win+r`---> `cmd`--->`cd путь к вашему файлу`---> `pyinstaller --onefile --noconsole --add-data "icon.png:." ваш_скрипт.pyw`
 >
 > [!IMPORTANT] 
 > - Отправляйте файл .exe в Автозагрузку(win+r--->shell:startup)
