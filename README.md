@@ -34,6 +34,10 @@ pip install pyautogui
 pip install GPUtil
 pip install pyinstaller
 ```
+# Или
+```
+pip install python-telegram-bot PyQt5 urllib3 six psutil pyautogui GPUtil pyinstaller
+```
 
 > [!IMPORTANT]
 > - После того как вы поменяли всё что нужно, сохраняйте и поменяйте формат файла `py` на `pyw` (таким образом, когда бот будет включаться не будет открываться консоль)
